@@ -1,11 +1,12 @@
-from fastapi.testclient import TestClient # type: ignore
+from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
 
-def test_healthz():
+def test_healthz_ok():
     r = client.get("/healthz")
     assert r.status_code == 200
-    body = r.json()
-    assert body["status"] == "ok"
-    assert isinstance(body["model_loaded"], bool)
+    data = r.json()
+    assert data["status"] == "ok"
+    assert isinstance(data["model_loaded"], bool)
+    assert "model_version" in data
