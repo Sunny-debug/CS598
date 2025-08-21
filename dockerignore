@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.log
+.git/
+.idea/
+.vscode/
+.DS_Store
+
+# Large or local-only assets
+models/*.pt
+# keep sample files only
+data/*
+!data/sample/*
