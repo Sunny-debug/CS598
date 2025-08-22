@@ -1,6 +1,8 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
+
 from .schemas import HealthResponse, PredictResponse
 from .config import settings
 from .utils.image_io import load_image_from_bytes, downscale_if_needed
@@ -15,11 +17,15 @@ app = FastAPI(title="Deepfake Image Detection Microservice", version="0.1.0")
 # CORS (tight by default; update when you attach a UI)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
+    allow_origins=[],  # e.g., ["http://localhost:8501"] for a local Streamlit UI
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Expose Prometheus metrics at /metrics (no Swagger entry)
+# You can customize buckets/labels later if needed.
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 # Lazy-load the placeholder model
 model = StubDeepfakeModel()
@@ -65,10 +71,14 @@ async def predict(file: UploadFile = File(...)):
         model_version=settings.model_version,
         threshold=settings.threshold,
     )
-    logger.info({"event": "predict", "label": resp.label, "score_fake": resp.score, "threshold": settings.threshold})
+    logger.info(
+        {
+            "event": "predict",
+            "label": resp.label,
+            "score_fake": resp.score,
+            "threshold": settings.threshold,
+        }
+    )
     return resp
 
-# Optional: plain /metrics placeholder to be replaced by Prometheus client later
-@app.get("/metrics", response_class=PlainTextResponse)
-def metrics():
-    return "# TODO: integrate prometheus_client and export real metrics\n"
+# (Removed the plain-text /metrics placeholder—Instrumentator now serves real metrics.)

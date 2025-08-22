@@ -1,18 +1,96 @@
-# Python
+# ------------------------
+# Python / Virtualenv
+# ------------------------
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
-*.db
+*.so
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+develop-eggs/
+.installed.cfg
+*.manifest
+*.spec
+pip-wheel-metadata/
+*.log
 
-# Virtual env
+# Virtual environments
+.venv/
 venv/
+ENV/
+env/
+.env/
+.envrc
 
-# IDE
+# ------------------------
+# Testing / Coverage
+# ------------------------
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# ------------------------
+# IDE / Editors
+# ------------------------
 .vscode/
 .idea/
 *.swp
+*.swo
+*.iml
 
-# OS
+# ------------------------
+# Jupyter / Notebooks
+# ------------------------
+.ipynb_checkpoints
+*.ipynb
+
+# ------------------------
+# Data / Models (local only)
+# ------------------------
+data/raw/
+data/tmp/
+data/.cache/
+*.npy
+*.npz
+*.csv
+*.tsv
+*.h5
+*.pth
+*.pt
+*.onnx
+models/
+checkpoints/
+outputs/
+runs/
+wandb/
+
+# ------------------------
+# OS files
+# ------------------------
 .DS_Store
 Thumbs.db
+
+# ------------------------
+# Docker / Kubernetes
+# ------------------------
+.dockerignore
+docker-compose.override.yml
+*~lock.json
+
+# ------------------------
+# Node (if using Streamlit UI with npm)
+# ------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
