@@ -1,17 +1,57 @@
-venv/
+# ------------------------
+# Python / Virtualenv
+# ------------------------
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.pytest_cache/
+*.egg-info
+.eggs/
 *.log
-.git/
-.idea/
-.vscode/
-.DS_Store
 
-# Large or local-only assets
-models/*.pt
-# keep sample files only
-data/*
-!data/sample/*
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# ------------------------
+# Build / Cache / Tests
+# ------------------------
+dist/
+build/
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ------------------------
+# Data / Models (local only, mount if needed)
+# ------------------------
+data/
+models/
+checkpoints/
+outputs/
+runs/
+wandb/
+
+# ------------------------
+# Configs / Secrets
+# ------------------------
+.env
+*.secret
+*.key
+*.pem
+
+# ------------------------
+# IDE / Editors
+# ------------------------
+.vscode/
+.idea/
+*.iml
+
+# ------------------------
+# OS junk
+# ------------------------
+.DS_Store
+Thumbs.db
