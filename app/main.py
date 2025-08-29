@@ -1,33 +1,34 @@
+from __future__ import annotations
+
+import logging
 from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from .schemas import HealthResponse, PredictResponse
-from .config import settings
-from .utils.image_io import load_image_from_bytes, downscale_if_needed
-from .models.stub import StubDeepfakeModel
-
-import logging
+from app.schemas import HealthResponse, PredictResponse
+from app.config import settings
+from app.utils.image_io import validate_and_load_image
+from app.models.stub import StubDeepfakeModel
 
 logger = logging.getLogger("uvicorn.error")
 
-app = FastAPI(title="Deepfake Image Detection Microservice", version="0.1.0")
+app = FastAPI(title="Deepfake Image Detection Microservice", version=settings.model_version)
 
-# CORS (tight by default; update when you attach a UI)
+# CORS (tight by default; allow list via env ALLOWED_ORIGINS="http://localhost:8501,http://xyz")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],  # e.g., ["http://localhost:8501"] for a local Streamlit UI
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Expose Prometheus metrics at /metrics (no Swagger entry)
-# You can customize buckets/labels later if needed.
-Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+# Prometheus metrics
+@app.on_event("startup")
+async def _startup():
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
-# Lazy-load the placeholder model
+# Lazy-load placeholder model (swap later with EfficientNet/ViT)
 model = StubDeepfakeModel()
 
 @app.get("/healthz", response_model=HealthResponse)
@@ -40,27 +41,22 @@ def healthz():
 
 @app.post("/predict", response_model=PredictResponse)
 async def predict(file: UploadFile = File(...)):
-    # Basic content-type & size checks
-    if file.content_type not in {"image/jpeg", "image/png", "image/webp", "image/bmp"}:
-        raise HTTPException(status_code=415, detail=f"Unsupported media type: {file.content_type}")
-
-    raw = await file.read()
-    size_mb = len(raw) / (1024 * 1024)
-    if size_mb > settings.max_image_size_mb:
-        raise HTTPException(status_code=413, detail=f"Image too large (> {settings.max_image_size_mb} MB).")
-
+    # Basic content-type & size checks are inside validate_and_load_image
     try:
-        img = load_image_from_bytes(raw)
-        img = downscale_if_needed(img, max_side=1024)
+        img = await validate_and_load_image(
+            file=file,
+            max_mb=settings.max_image_size_mb,
+            allowed_content_types={"image/jpeg", "image/png", "image/webp", "image/bmp"},
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("Failed to load image")
+        logger.exception("Failed to read/validate image")
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
 
     probs = model.predict_proba(img)
     score_fake = float(probs.get("fake", 0.0))
     label = "fake" if score_fake >= settings.threshold else "real"
-
-    # Confidence = probability of predicted label
     confidence = score_fake if label == "fake" else float(probs.get("real", 0.0))
 
     resp = PredictResponse(
@@ -71,14 +67,5 @@ async def predict(file: UploadFile = File(...)):
         model_version=settings.model_version,
         threshold=settings.threshold,
     )
-    logger.info(
-        {
-            "event": "predict",
-            "label": resp.label,
-            "score_fake": resp.score,
-            "threshold": settings.threshold,
-        }
-    )
+    logger.info({"event": "predict", "label": resp.label, "score_fake": resp.score, "threshold": settings.threshold})
     return resp
-
-# (Removed the plain-text /metrics placeholder—Instrumentator now serves real metrics.)
