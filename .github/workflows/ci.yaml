@@ -5,12 +5,18 @@ on:
     branches: ["main", "feat/**"]
   pull_request:
 
+# give GITHUB_TOKEN permission to push to GHCR
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write   # required for GHCR push
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,25 +42,30 @@ jobs:
       - name: Run tests
         run: pytest -q
 
-      - name: Derive image tag
-        id: img
-        run: echo "TAG=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+      # Derive lowercase image name and short tag
+      - name: Derive image refs
+        run: |
+          echo "IMAGE_LC=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Login to GHCR
         if: env.REGISTRY_PUSH == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.CR_PAT }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & (optionally) push image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: ${{ env.REGISTRY_PUSH == 'true' }}
-          tags: ${{ env.IMAGE_TAG || format('ghcr.io/{0}/deepfake-microservice:{1}', github.repository_owner, steps.img.outputs.TAG) }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:${{ env.TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:latest
           provenance: false
+
     env:
+      # toggle pushing from repo secrets: set REGISTRY_PUSH='true' to push
       REGISTRY_PUSH: ${{ secrets.REGISTRY_PUSH }}
-      IMAGE_TAG:     ${{ secrets.IMAGE_TAG }}
