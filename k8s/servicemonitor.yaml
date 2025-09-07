@@ -9,3 +9,8 @@ spec:
     - port: http
       path: /metrics
       interval: 15s
+metadata:
+  name: deepfake-detector-sm
+  namespace: monitoring
+  labels:
+    release: mon
