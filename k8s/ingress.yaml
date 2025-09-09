@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: deepfake-ing
+  namespace: deepfake
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: deepfake.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: deepfake-api-svc
+                port: { number: 80 }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: deepfake-ui-svc
+                port: { number: 80 }
