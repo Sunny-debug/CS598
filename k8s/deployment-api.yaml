@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepfake-api
+  namespace: deepfake
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: deepfake-api }
+  template:
+    metadata:
+      labels: { app: deepfake-api }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8000"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: api
+          image: IMAGE_PLACEHOLDER   # replaced by CI step
+          imagePullPolicy: Always
+          ports: [{ containerPort: 8000 }]
+          env:
+            - name: UVICORN_WORKERS
+              value: "2"
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "1Gi" }
