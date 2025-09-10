@@ -5,8 +5,9 @@ metadata:
   namespace: deepfake
 spec:
   type: ClusterIP
-  selector: { app: deepfake-ui }
+  selector:
+    app: deepfake-ui
   ports:
-    - name: http
-      port: 80
+    - port: 80
       targetPort: 8501
+
