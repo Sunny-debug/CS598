@@ -1,3 +1,4 @@
+# app/main.py
 from __future__ import annotations
 
 import logging
@@ -23,10 +24,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus metrics
+# ---- Prometheus metrics ----
+# Add middleware BEFORE app starts (module import time)
+instrumentator = Instrumentator(
+    # You can tweak options here if needed
+    # should_instrument_requests_inprogress=True,
+)
+instrumentator.instrument(app)
+
 @app.on_event("startup")
-async def _startup():
-    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+async def _startup() -> None:
+    # Safe to expose the route during startup
+    instrumentator.expose(app, endpoint="/metrics", include_in_schema=False)
 
 # Lazy-load placeholder model (swap later with EfficientNet/ViT)
 model = StubDeepfakeModel()
