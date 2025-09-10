@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main", "feat/**"]
   pull_request:
-
+  workflow_dispatch: {}  
 # give GITHUB_TOKEN permission to push to GHCR
 permissions:
   contents: read
