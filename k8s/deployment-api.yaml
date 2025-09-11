@@ -20,7 +20,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: api
-          image: IMAGE_PLACEHOLDER   # replaced by CI step
+          image: ghcr.io/sunny-debug/cs598:latest 
           imagePullPolicy: Always
           ports: [{ containerPort: 8000 }]
           env:
@@ -28,12 +28,12 @@ spec:
               value: "2"
           readinessProbe:
             httpGet: { path: /healthz, port: 8000 }
-            initialDelaySeconds: 5
+            initialDelaySeconds: 2
             periodSeconds: 5
           livenessProbe:
             httpGet: { path: /healthz, port: 8000 }
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
             periodSeconds: 10
           resources:
-            requests: { cpu: "200m", memory: "256Mi" }
-            limits:   { cpu: "1",    memory: "1Gi" }
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "5000m",    memory: "512Mi" }
