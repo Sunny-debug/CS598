@@ -22,23 +22,12 @@ FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PATH="/home/appuser/.local/bin:${PATH}"  # ensure streamlit is on PATH
 
 # Create non-root user and app dir
 RUN useradd -m appuser
 WORKDIR /app
-
-# Install deps
-COPY --chown=appuser:appuser requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy backend code
-COPY --chown=appuser:appuser app ./app
-
-# Copy Streamlit UI code
-COPY --chown=appuser:appuser streamlit_app ./streamlit_app
-
-ENV PYTHONPATH=/app
 
 # Runtime-only libs (no headers)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -51,17 +40,20 @@ COPY requirements.txt .
 RUN pip install --no-index --find-links=/wheels -r requirements.txt \
  && rm -rf /wheels
 
-# Copy source and ensure ownership
+# Copy source (API + UI)
 COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser streamlit_app ./streamlit_app
+
+ENV PYTHONPATH=/app
 
 USER appuser
 
-# Optional: scale via env (set WEB_CONCURRENCY in runtime)
-ENV WEB_CONCURRENCY=1
+# Expose both typical ports (API 8000, UI 8501)
+EXPOSE 8000 8501
 
-EXPOSE 8000
+# NOTE: API healthcheck is fine for the API pod, but disable/remove for the UI pod.
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()" || exit 1
 
-# Optional: basic healthcheck (expects /healthz route)
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()" || exit 1
-
+# Default command runs the API; the UI Deployment overrides this to Streamlit.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
