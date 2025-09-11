@@ -28,6 +28,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN useradd -m appuser
 WORKDIR /app
 
+# Install deps
+COPY --chown=appuser:appuser requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy backend code
+COPY --chown=appuser:appuser app ./app
+
+# Copy Streamlit UI code
+COPY --chown=appuser:appuser streamlit_app ./streamlit_app
+
+ENV PYTHONPATH=/app
+
 # Runtime-only libs (no headers)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg62-turbo zlib1g libpng16-16 ca-certificates \
