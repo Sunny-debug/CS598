@@ -16,35 +16,36 @@ spec:
       containers:
         - name: ui
           image: ghcr.io/sunny-debug/cs598:latest
-          workingDir: /app  
-          # run Streamlit explicitly (avoids PATH issues)
-          command: ["python", "-m", "streamlit"]
+          imagePullPolicy: Always     # always pull latest tag
+          workingDir: /app
+          command: ["streamlit", "run", "/app/streamlit_app/app.py"]
           args:
-            - "run"
-            - "streamlit_app/app.py"
-            - "--server.port"
-            - "8501"
-            - "--server.address"
-            - "0.0.0.0"
-            - "--server.headless"
-            - "true" 
+            - "--server.port=8501"
+            - "--server.address=0.0.0.0"
+            - "--server.headless=true"
           env:
             - name: API_BASE
               value: "http://deepfake-api-svc.deepfake.svc.cluster.local"
-            # avoid permission issues with non-root; Streamlit writes here
             - name: STREAMLIT_RUNTIME_SCRATCH_DIR
-              value: "/tmp"
+              value: "/tmp"   # avoids write issues in container
           ports:
             - containerPort: 8501
           readinessProbe:
-            httpGet: { path: "/", port: 8501 }
-            initialDelaySeconds: 3
-            periodSeconds: 5
-          livenessProbe:
-            httpGet: { path: "/", port: 8501 }
+            httpGet:
+              path: /
+              port: 8501
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 20
           resources:
-            requests: { cpu: "50m", memory: "128Mi" }
-            limits:   { cpu: "500m", memory: "256Mi" }
-
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

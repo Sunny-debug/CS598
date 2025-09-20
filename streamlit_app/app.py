@@ -1,16 +1,21 @@
 import time
 import requests
 import streamlit as st
+import os
 
 st.set_page_config(page_title="Deepfake Detector Demo", layout="centered")
 st.title("Deepfake Detector — Streamlit Demo")
 
-st.write("Point this at your FastAPI service (Minikube NodePort or port-forward).")
-default_api = "http://{}:{}".format(
-    st.session_state.get("node_ip", "127.0.0.1"),
-    st.session_state.get("node_port", "30080"),
+# Pick API base URL from environment variable if set, otherwise fallback to localhost:30080
+api_url_default = os.getenv(
+    "API_BASE",
+    "http://{}:{}".format(
+        st.session_state.get("node_ip", "127.0.0.1"),
+        st.session_state.get("node_port", "30080"),
+    ),
 )
-api_url = st.text_input("API base URL", default_api)
+
+api_url = st.text_input("API base URL", api_url_default)
 
 file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png", "webp", "bmp"])
 

@@ -13,7 +13,11 @@ from app.models.stub import StubDeepfakeModel
 
 logger = logging.getLogger("uvicorn.error")
 
-app = FastAPI(title="Deepfake Image Detection Microservice", version=settings.model_version)
+app = FastAPI(
+    title="Deepfake API",
+    version=settings.model_version,
+    root_path="/api"    # <--- THIS
+)
 
 # CORS (tight by default; allow list via env ALLOWED_ORIGINS="http://localhost:8501,http://xyz")
 app.add_middleware(
