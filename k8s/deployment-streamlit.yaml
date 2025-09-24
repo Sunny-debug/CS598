@@ -16,18 +16,22 @@ spec:
       containers:
         - name: ui
           image: ghcr.io/sunny-debug/cs598:latest
-          imagePullPolicy: Always     # always pull latest tag
+          imagePullPolicy: Always
           workingDir: /app
-          command: ["streamlit", "run", "/app/streamlit_app/app.py"]
+          command: ["python"]
           args:
-            - "--server.port=8501"
+            - "-m"
+            - "streamlit"
+            - "run"
+            - "streamlit_app/app.py"
             - "--server.address=0.0.0.0"
+            - "--server.port=8501"
             - "--server.headless=true"
           env:
             - name: API_BASE
               value: "http://deepfake-api-svc.deepfake.svc.cluster.local"
             - name: STREAMLIT_RUNTIME_SCRATCH_DIR
-              value: "/tmp"   # avoids write issues in container
+              value: "/tmp"
           ports:
             - containerPort: 8501
           readinessProbe:
