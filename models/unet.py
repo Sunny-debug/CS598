@@ -1,12 +1,16 @@
-# unchanged — pasted here for completeness if needed
 import torch
 import torch.nn as nn
 
 def _conv_bn_relu(cin, cout, k=3, s=1, p=1):
-    return nn.Sequential(nn.Conv2d(cin, cout, k, s, p, bias=False),
-                         nn.BatchNorm2d(cout), nn.ReLU(inplace=True))
+    return nn.Sequential(
+        nn.Conv2d(cin, cout, k, s, p, bias=False),
+        nn.BatchNorm2d(cout),
+        nn.ReLU(inplace=True)
+    )
 
-class UNetSmall(nn.Module):
+# ---- CHANGE HERE ----
+# Renamed the main class to UNNetSmall (double N)
+class UNNetSmall(nn.Module):
     def __init__(self, in_ch=3, base=32):
         super().__init__()
         self.enc1 = nn.Sequential(_conv_bn_relu(in_ch, base), _conv_bn_relu(base, base))
@@ -47,3 +51,7 @@ class UNetSmall(nn.Module):
         d1 = self.dec1(torch.cat([d1, e1], 1))
         logits = self.outc(d1)
         return logits
+
+# ---- CHANGE HERE ----
+# Add an alias so both spellings work
+UNetSmall = UNNetSmall

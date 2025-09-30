@@ -2,10 +2,11 @@
 Models package initializer.
 
 This makes `models` a proper Python package so imports like
-`from models.unet import UNNetSmall` work.
+`from models.unet import UNNetSmall` or `UNetSmall` work.
 """
 
-# Optionally, you can re-export key classes here:
-from .unet import UNNetSmall
+# ---- CHANGE HERE ----
+# Import both spellings from unet.py
+from .unet import UNNetSmall, UNetSmall
 
-__all__ = ["UNNetSmall"]
+__all__ = ["UNNetSmall", "UNetSmall"]
