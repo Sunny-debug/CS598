@@ -68,7 +68,7 @@ data/.cache/
 *.pth
 *.pt
 *.onnx
-models/
+# models/
 checkpoints/
 outputs/
 runs/
