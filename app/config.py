@@ -22,9 +22,11 @@ class Settings(BaseModel):
     model_path: str | None = os.getenv("MODEL_PATH")  # optional (MVP uses stub)
     threshold: float = float(os.getenv("THRESHOLD", "0.5"))
 
+    model_kind: str = "heuristic"
+    return_mask: bool = True 
     # Uploads
     max_image_size_mb: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "10"))
-
+    max_upload_mb: int = 50
     # CORS
     allowed_origins: List[str] = _parse_csv_list(os.getenv("ALLOWED_ORIGINS", ""))
 

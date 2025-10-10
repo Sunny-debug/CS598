@@ -1,12 +1,16 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: deepfake-api-svc
+  name: deepfake-api
   namespace: deepfake
+  labels:
+    app: deepfake-api
 spec:
-  type: ClusterIP
-  selector: { app: deepfake-api }
+  type: NodePort   # easy access in Minikube
+  selector:
+    app: deepfake-api
   ports:
     - name: http
-      port: 80
+      port: 8000
       targetPort: 8000
+      nodePort: 30081   # reachable at http://$(minikube ip):30080

@@ -1,55 +1,31 @@
-# ------------------------
-# Stage 1: Build wheels
-# ------------------------
-FROM python:3.11-slim AS builder
-
-WORKDIR /wheels
-
-# Build deps for native packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc g++ \
-    libjpeg62-turbo-dev zlib1g-dev libpng-dev \
- && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN python -m pip install -U pip setuptools wheel \
- && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
-
-# ------------------------
-# Stage 2: Runtime image
-# ------------------------
-FROM python:3.11-slim AS runtime
+FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    WEB_CONCURRENCY=1
 
-# Create non-root user and app dir
-RUN useradd -m appuser
-WORKDIR /app
-
-# Runtime-only libs (no headers)
+# OS libs for Pillow & TLS
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg62-turbo zlib1g libpng16-16 ca-certificates \
+    libjpeg62-turbo libpng16-16 ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Install from prebuilt wheels
-COPY --from=builder /wheels /wheels
+WORKDIR /app
+
+# --- Install PyTorch CPU wheels explicitly (small + reliable) ---
+RUN pip install --no-cache-dir torch==2.3.1 torchvision==0.18.1 \
+    -f https://download.pytorch.org/whl/cpu/torch_stable.html
+
+# --- Install your app requirements (NO torch/torchvision here) ---
 COPY requirements.txt .
-RUN pip install --no-index --find-links=/wheels -r requirements.txt \
- && rm -rf /wheels
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source and ensure ownership
-COPY --chown=appuser:appuser app ./app
+# App code only (model will be volume-mounted at runtime)
+COPY app ./app
 
-USER appuser
-
-# Optional: scale via env (set WEB_CONCURRENCY in runtime)
-ENV WEB_CONCURRENCY=1
-
+# (optional) add both health endpoints; or keep only /health in your app
 EXPOSE 8000
-
-# Optional: basic healthcheck (expects /healthz route)
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()" || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" || exit 1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

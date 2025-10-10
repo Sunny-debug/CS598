@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: deepfake-ui
   namespace: deepfake
+  labels:
+    app: deepfake-ui
 spec:
   replicas: 1
   selector:
@@ -13,38 +15,50 @@ spec:
       labels:
         app: deepfake-ui
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
       containers:
         - name: ui
           image: ghcr.io/sunny-debug/cs598:latest
-          workingDir: /app  
-          # run Streamlit explicitly (avoids PATH issues)
+          imagePullPolicy: IfNotPresent
+          workingDir: /app
           command: ["python", "-m", "streamlit"]
           args:
             - "run"
-            - "streamlit_app/app.py"
+            - "streamlit_app/app.py"   # <-- ensure this path exists in the image
             - "--server.port"
             - "8501"
             - "--server.address"
             - "0.0.0.0"
             - "--server.headless"
-            - "true" 
+            - "true"
           env:
-            - name: API_BASE
-              value: "http://deepfake-api-svc.deepfake.svc.cluster.local"
-            # avoid permission issues with non-root; Streamlit writes here
+            # ✅ Streamlit code reads API_URL. Use in-cluster DNS + port 8000.
+            - name: API_URL
+              value: "http://deepfake-api.deepfake.svc.cluster.local:8000"
+            # Avoid permission issues (Streamlit writes here)
             - name: STREAMLIT_RUNTIME_SCRATCH_DIR
               value: "/tmp"
           ports:
             - containerPort: 8501
           readinessProbe:
-            httpGet: { path: "/", port: 8501 }
+            httpGet:
+              path: "/"
+              port: 8501
             initialDelaySeconds: 3
             periodSeconds: 5
           livenessProbe:
-            httpGet: { path: "/", port: 8501 }
-            initialDelaySeconds: 5
+            httpGet:
+              path: "/"
+              port: 8501
+            initialDelaySeconds: 10
             periodSeconds: 10
           resources:
-            requests: { cpu: "50m", memory: "128Mi" }
-            limits:   { cpu: "500m", memory: "256Mi" }
-
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

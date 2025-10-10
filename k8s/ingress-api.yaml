@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: deepfake-api-ingress
+  namespace: deepfake
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: "200m"        # uploads up to 200 MB
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"       # allow long inference
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"  # stream request body
+    nginx.ingress.kubernetes.io/client-body-buffer-size: "16m"
+    nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+spec:
+  ingressClassName: nginx
+#  tls:
+#    - hosts: [deepfake.local]
+#      secretName: deepfake-local-tls   # (optional) create later with cert-manager or mkcert
+  rules:
+  - host: deepfake.local
+    http:
+      paths:
+      - path: /api(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: deepfake-api
+            port:
+              number: 8000

@@ -1,39 +1,58 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: deepfake-api
   namespace: deepfake
+  labels:
+    app: deepfake-api
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: deepfake-api }
+    matchLabels:
+      app: deepfake-api
   template:
     metadata:
-      labels: { app: deepfake-api }
+      labels:
+        app: deepfake-api
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8000"
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
       containers:
         - name: api
-          image: ghcr.io/sunny-debug/cs598:latest 
-          imagePullPolicy: Always
-          ports: [{ containerPort: 8000 }]
+          image: deepfake-detector:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
           env:
-            - name: UVICORN_WORKERS
-              value: "2"
+            - name: WEB_CONCURRENCY
+              value: "1"
+          volumeMounts:
+            - name: model
+              mountPath: /app/checkpoints
+              readOnly: true
           readinessProbe:
-            httpGet: { path: /healthz, port: 8000 }
-            initialDelaySeconds: 2
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
             periodSeconds: 5
           livenessProbe:
-            httpGet: { path: /healthz, port: 8000 }
-            initialDelaySeconds: 5
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
             periodSeconds: 10
           resources:
-            requests: { cpu: "100m", memory: "256Mi" }
-            limits:   { cpu: "5000m",    memory: "512Mi" }
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: model
+          persistentVolumeClaim:
+            claimName: deepfake-model-pvc

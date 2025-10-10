@@ -1,66 +1,97 @@
-import argparse, os, torch
-from torch.utils.data import DataLoader, random_split
-from models.unet import UNNetSmall as _  # ensure import path correct if your package layout differs
-from models.unet import UNetSmall
+from __future__ import annotations
+import argparse, json, os, platform, random, time
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+
 from training.datasets import InpaintSynthDataset
-from training.losses import bce_dice_loss
-from tqdm import tqdm
+from training.datasets_paired import PairedMaskDataset
+from models import UNNetSmall
 
-def train(args):
-    ds = InpaintSynthDataset(args.src_dir, size=args.size)
-    n_val = max(50, int(0.1 * len(ds)))
-    n_train = len(ds) - n_val
-    train_ds, val_ds = random_split(ds, [n_train, n_val], generator=torch.Generator().manual_seed(42))
-    dl = DataLoader(train_ds, batch_size=args.bs, shuffle=True, num_workers=4, pin_memory=True)
-    vl = DataLoader(val_ds, batch_size=args.bs, shuffle=False, num_workers=2)
 
+def is_wsl() -> bool:
+    try:
+        with open("/proc/sys/kernel/osrelease") as f:
+            return "microsoft" in f.read().lower()
+    except Exception:
+        return False
+
+def default_num_workers() -> int:
+    if platform.system().lower().startswith("win") or is_wsl():
+        return 0
+    return max(1, os.cpu_count() // 2)
+
+def set_seeds(seed: int = 42):
+    random.seed(seed); np.random.seed(seed)
+    torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
+
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--src_dir", help="Directory of clean images (on-the-fly synth)")
+    p.add_argument("--paired_dir", help="Pre-generated paired dataset (imgs/masks)")
+    p.add_argument("--out_dir", default="checkpoints")
+    p.add_argument("--epochs", type=int, default=10)
+    p.add_argument("--bs", type=int, default=2)
+    p.add_argument("--size", type=int, default=256)
+    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--workers", type=int, default=-1)
+    return p.parse_args()
+
+def make_loader(args, device: torch.device):
+    if args.paired_dir:
+        ds = PairedMaskDataset(args.paired_dir)
+    elif args.src_dir:
+        ds = InpaintSynthDataset(args.src_dir, size=args.size)
+    else:
+        raise SystemExit("Need either --paired_dir or --src_dir")
+    if len(ds) == 0: raise RuntimeError("Dataset is empty!")
+
+    workers = default_num_workers() if args.workers == -1 else args.workers
+    pin = device.type == "cuda"
+    return DataLoader(ds, batch_size=args.bs, shuffle=True,
+                      num_workers=workers, pin_memory=pin,
+                      persistent_workers=(workers>0)), workers
+
+def train_one_epoch(model, loader, optim, crit, scaler, device):
+    model.train(); total=0.0
+    for x,y in loader:
+        x,y = x.to(device), y.to(device)
+        optim.zero_grad(set_to_none=True)
+        with torch.cuda.amp.autocast(enabled=(device.type=="cuda")):
+            logits = model(x); loss = crit(logits,y)
+        scaler.scale(loss).backward(); scaler.step(optim); scaler.update()
+        total += float(loss.item())
+    return total/len(loader)
+
+def main():
+    args = parse_args(); set_seeds(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = UNetSmall(in_ch=3, base=args.base).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    best = 1e9
+    loader, workers = make_loader(args, device)
 
-    for epoch in range(1, args.epochs+1):
-        model.train()
-        pbar = tqdm(dl, desc=f"Epoch {epoch}/{args.epochs}")
-        tr_loss = 0.0
-        for img, mask in pbar:
-            img = img.to(device)
-            mask = mask.to(device)
-            logits = model(img)
-            loss = bce_dice_loss(logits, mask, bce_w=0.5)
-            opt.zero_grad(); loss.backward(); opt.step()
-            tr_loss += loss.item() * img.size(0)
-            pbar.set_postfix(loss=loss.item())
+    model = UNNetSmall(in_ch=3, base=32).to(device)
+    optim = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    crit = torch.nn.BCEWithLogitsLoss()
+    scaler = torch.cuda.amp.GradScaler(enabled=(device.type=="cuda"))
 
-        # val
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for img, mask in vl:
-                img = img.to(device); mask = mask.to(device)
-                logits = model(img)
-                val_loss += bce_dice_loss(logits, mask).item() * img.size(0)
-        val_loss /= len(val_ds)
-        print(f"val_loss={val_loss:.4f}")
+    print(f"Training on {device} | samples={len(loader.dataset)} bs={args.bs} workers={workers}")
 
-        if val_loss < best:
-            best = val_loss
-            ckpt = os.path.join(args.out_dir, "unet_best.pt")
-            torch.save({"state_dict": model.state_dict(),
-                        "epoch": epoch,
-                        "args": vars(args)}, ckpt)
-            print(f"Saved {ckpt}")
+    history=[]
+    for ep in range(1,args.epochs+1):
+        loss=train_one_epoch(model, loader, optim, crit, scaler, device)
+        history.append({"epoch":ep,"loss":loss})
+        print(f"[epoch {ep:03d}/{args.epochs}] loss={loss:.4f}")
 
-if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--src_dir", required=True, help="folder of clean images for synthetic edits")
-    ap.add_argument("--out_dir", default="checkpoints")
-    ap.add_argument("--size", type=int, default=256)
-    ap.add_argument("--bs", type=int, default=8)
-    ap.add_argument("--epochs", type=int, default=5)
-    ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--base", type=int, default=32)
-    args = ap.parse_args()
-    train(args)
+    Path(args.out_dir).mkdir(parents=True, exist_ok=True)
+    ckpt=Path(args.out_dir)/"unet_small_paired.pth"
+    torch.save(model.state_dict(), ckpt)
+    with open(str(ckpt)+".meta.json","w") as f: json.dump(history,f,indent=2)
+    print(f"Saved {ckpt}")
+
+if __name__=="__main__":
+    main()

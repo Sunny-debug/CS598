@@ -1,13 +1,16 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: deepfake-ui-svc
+  name: deepfake-ui
   namespace: deepfake
+  labels:
+    app: deepfake-ui
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: deepfake-ui
   ports:
-    - port: 80
+    - name: http
+      port: 8501
       targetPort: 8501
-
+      nodePort: 30501

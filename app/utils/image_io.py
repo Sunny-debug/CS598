@@ -9,7 +9,7 @@ from PIL import Image, UnidentifiedImageError
 
 async def validate_and_load_image(
     file: UploadFile,
-    max_mb: int = 10,
+    max_mb: int = 50,
     allowed_content_types: Iterable[str] = ("image/jpeg", "image/png"),
 ) -> Image.Image:
     """

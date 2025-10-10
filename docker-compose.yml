@@ -1,7 +1,30 @@
 version: "3.9"
+
 services:
-  deepfake:
-    image: deepfake-microservice:local
-    container_name: deepfake
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: deepfake-detector:latest
+    container_name: deepfake-api
     ports:
-      - "8000:8000"   # host:container
+      - "8000:8000"
+    volumes:
+      - ./checkpoints:/app/checkpoints:ro
+    restart: unless-stopped
+
+  ui:
+    image: python:3.11-slim
+    container_name: deepfake-ui
+    working_dir: /app
+    environment:
+      - API_URL=http://api:8000
+    volumes:
+      - ./streamlit_app:/app
+    command: >
+      bash -c "pip install streamlit==1.38.0 requests pillow numpy &&
+               streamlit run app.py --server.address=0.0.0.0"
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api

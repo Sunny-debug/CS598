@@ -101,5 +101,11 @@ streamlit:
 	$(PY) -m pip install -U streamlit requests
 	$(PY) -m streamlit run streamlit_app/app.py
 
-pexels-test:
-	$(PY) -m scripts.test_pexels
+train:
+	@export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128,expandable_segments:True && \
+	venv-train/bin/python -m training.train_unet \
+		--src_dir data/clean/edited \
+		--out_dir checkpoints \
+		--epochs 2 \
+		--bs 2 \
+		--size 256
