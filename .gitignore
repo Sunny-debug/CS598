@@ -73,7 +73,15 @@ checkpoints/
 outputs/
 runs/
 wandb/
-
+outputs/
+*.pt
+*.pth
+*.onnx
+*.mp4
+*.zip
+*.tar
+*.tar.gz
+*.ipynb_checkpoints/
 # ------------------------
 # OS files
 # ------------------------
@@ -94,3 +102,23 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# --- repo hygiene ---
+# never commit data / generated assets
+data/
+outputs/
+checkpoints/
+# python build noise
+**/__pycache__/
+*.pyc
+*.pyo
+# images (you said: code only)
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.bmp
+*.tif
+*.tiff
+*.gif
+# secrets
+.env
