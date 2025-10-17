@@ -1,0 +1,28 @@
+# Dockerfile.ui — Streamlit frontend build (fixed)
+FROM python:3.11-slim
+
+# System deps for Pillow, Streamlit, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libjpeg62-turbo-dev \
+    zlib1g-dev \
+    libpng-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for cache efficiency
+COPY requirements-ui.txt /app/requirements-ui.txt
+
+# Upgrade pip and install dependencies directly (simpler, retry-safe)
+RUN python -m pip install -U pip setuptools wheel && \
+    pip install --no-cache-dir -r /app/requirements-ui.txt
+
+# Copy app code
+COPY streamlit_app /app/streamlit_app
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# Run Streamlit
+CMD ["streamlit", "run", "streamlit_app/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]

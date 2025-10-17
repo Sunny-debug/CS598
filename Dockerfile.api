@@ -1,0 +1,36 @@
+# ===============================
+# Deepfake Detector API
+# ===============================
+FROM python:3.11-slim AS base
+
+WORKDIR /app
+
+# Install system deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git curl && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
+
+# Install Torch CPU wheels (no CUDA; stable on Minikube)
+RUN for i in 1 2 3; do \
+      pip install --no-cache-dir --timeout 120 --retries 5 \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 && break || sleep 5; \
+    done
+
+# Install FastAPI + deps (ensure torch is NOT pinned again in requirements.txt)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy code & weights
+COPY app /app/app
+COPY models /app/models
+RUN mkdir -p /app/checkpoints
+COPY checkpoints/ /app/checkpoints/
+
+ENV MODEL_PATH=/app/checkpoints/unet_small_traced.pt
+ENV MODEL_VERSION=v0.1.0
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
