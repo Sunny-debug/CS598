@@ -4,19 +4,20 @@ on:
   push:
     branches: ["main", "feat/**"]
   pull_request:
-  workflow_dispatch: {}  
-# give GITHUB_TOKEN permission to push to GHCR
+  workflow_dispatch: {}
+
 permissions:
   contents: read
   packages: write
 
 env:
   REGISTRY: ghcr.io
+  API_IMAGE: cs598-api
+  UI_IMAGE: cs598-ui
 
 jobs:
-  test-and-build:
+  test:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,19 +35,36 @@ jobs:
           restore-keys: |
             pip-${{ runner.os }}-
 
-      - name: Install deps
+      - name: Install deps (project)
         run: |
           python -m pip install -U pip wheel
           pip install -r requirements.txt
 
+      - name: Install PyTorch (CPU wheels for CI only)
+        run: |
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu \
+            torch==2.4.1 torchvision==0.19.1 --no-cache-dir
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
       - name: Run tests
         run: pytest -q
 
-      # Derive lowercase image name and short tag
-      - name: Derive image refs
-        run: |
-          echo "IMAGE_LC=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-          echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+  build-api:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY_PUSH: ${{ secrets.REGISTRY_PUSH }}  # set to "true" in repo secrets to push
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
         if: env.REGISTRY_PUSH == 'true'
@@ -56,16 +74,57 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & (optionally) push image
+      - name: Derive tags
+        run: |
+          echo "SHA_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Build API image (Dockerfile.api)
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.api
           push: ${{ env.REGISTRY_PUSH == 'true' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:${{ env.TAG }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:latest
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.API_IMAGE }}:${{ env.SHA_TAG }}
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.API_IMAGE }}:latest
           provenance: false
 
+  build-ui:
+    needs: test
+    runs-on: ubuntu-latest
     env:
-      # toggle pushing from repo secrets: set REGISTRY_PUSH='true' to push
       REGISTRY_PUSH: ${{ secrets.REGISTRY_PUSH }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: env.REGISTRY_PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        run: |
+          echo "SHA_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Build UI image (Dockerfile.ui)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ui
+          push: ${{ env.REGISTRY_PUSH == 'true' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.UI_IMAGE }}:${{ env.SHA_TAG }}
+            ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.UI_IMAGE }}:latest
+          provenance: false
