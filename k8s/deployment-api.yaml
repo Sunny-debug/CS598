@@ -19,11 +19,12 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8000"
+        rollout-trigger: "force-redeploy-$(date +%s)"
     spec:
       containers:
         - name: api
           image: ghcr.io/sunny-debug/cs598-api:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           env:
