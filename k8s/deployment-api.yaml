@@ -22,13 +22,15 @@ spec:
     spec:
       containers:
         - name: api
-          image: deepfake-detector:latest
+          image: ghcr.io/sunny-debug/cs598-api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
             - name: WEB_CONCURRENCY
               value: "1"
+            - name: MODEL_PATH
+              value: /app/checkpoints/unet_small_traced.pt
           volumeMounts:
             - name: model
               mountPath: /app/checkpoints
