@@ -1,4 +1,9 @@
+import pytest
+
+pytestmark = [pytest.mark.local, pytest.mark.slow, pytest.mark.requires_weights]
+
 import torch
+from app.models.unet_infer import UNetInfer
 from models.unet import UNetSmall
 
 def test_forward_shapes():
