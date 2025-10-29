@@ -1,10 +1,12 @@
+---
 name: ci
-
 on:
   push:
-    branches: ["main", "feat/**"]
+    branches:
+      - main
+      - feat/**
   pull_request:
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,9 +16,7 @@ env:
   REGISTRY: ghcr.io
   API_IMAGE: cs598-api
   UI_IMAGE: cs598-ui
-  # Toggle CI tests with a repo secret named RUN_TESTS (set to "true" to enable)
   RUN_TESTS: ${{ secrets.RUN_TESTS }}
-  # Toggle image push to GHCR with a secret named REGISTRY_PUSH ("true" to push)
   REGISTRY_PUSH: ${{ secrets.REGISTRY_PUSH }}
 
 jobs:
@@ -25,21 +25,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Decide whether to run tests
         run: |
           if [ "${RUN_TESTS}" != "true" ]; then
-            echo "✅ Skipping tests in CI (set repo secret RUN_TESTS=true to enable)."
+            echo "Skipping tests in CI (set repo secret RUN_TESTS=true to enable)."
             exit 0
           fi
-
-      # Everything below runs only when RUN_TESTS == "true"
       - name: Set up Python 3.11
         if: ${{ env.RUN_TESTS == 'true' }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Cache pip
         if: ${{ env.RUN_TESTS == 'true' }}
         uses: actions/cache@v4
@@ -48,28 +44,17 @@ jobs:
           key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             pip-${{ runner.os }}-
-
       - name: Install deps (project)
         if: ${{ env.RUN_TESTS == 'true' }}
         run: |
           python -m pip install -U pip wheel
           pip install -r requirements.txt
-
-      - name: Install test-only deps (CPU PyTorch + optional OpenCV)
+      - name: Install test-only deps
         if: ${{ env.RUN_TESTS == 'true' }}
         run: |
           pip install --extra-index-url https://download.pytorch.org/whl/cpu \
             torch==2.4.1 torchvision==0.19.1 --no-cache-dir
-          # Uncomment if you keep OpenCV tests enabled
-          # pip install opencv-python-headless==4.10.0.84
           pip install pytest-asyncio==0.23.6
-
-      - name: Set PYTHONPATH & CI env
-        if: ${{ env.RUN_TESTS == 'true' }}
-        run: |
-          echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
-          echo "MODEL_BACKEND=stub" >> $GITHUB_ENV
-
       - name: Run tests
         if: ${{ env.RUN_TESTS == 'true' }}
         run: pytest -q
@@ -80,13 +65,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Login to GHCR
         if: env.REGISTRY_PUSH == 'true'
         uses: docker/login-action@v3
@@ -94,13 +76,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Derive tags
         run: |
           echo "SHA_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
           echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Build API image (Dockerfile.api)
+      - name: Build API image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -117,13 +97,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Login to GHCR
         if: env.REGISTRY_PUSH == 'true'
         uses: docker/login-action@v3
@@ -131,13 +108,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Derive tags
         run: |
           echo "SHA_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
           echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      - name: Build UI image (Dockerfile.ui)
+      - name: Build UI image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -148,5 +123,16 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/${{ env.UI_IMAGE }}:latest
           provenance: false
 
-
-
+  deploy:
+    needs: [build-api, build-ui]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    env:
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - name: Set images and rollout
+        run: |
+          kubectl -n deepfake set image deployment/deepfake-api api=ghcr.io/sunny-debug/cs598-api:${GIT_SHA}
+          kubectl -n deepfake set image deployment/deepfake-ui-v2 ui=ghcr.io/sunny-debug/cs598-ui:${GIT_SHA}
+          kubectl -n deepfake rollout status deployment/deepfake-api
+          kubectl -n deepfake rollout status deployment/deepfake-ui-v2

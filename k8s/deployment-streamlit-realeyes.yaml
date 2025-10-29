@@ -52,7 +52,7 @@ spec:
           value: /tmp
         - name: API_URL
           value: http://deepfake-api-svc
-        image: ghcr.io/sunny-debug/cs598-ui:realeyes-20251020-1425
+        image: ghcr.io/sunny-debug/cs598-ui:${GIT_SHA}
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 3

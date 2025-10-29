@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/sunny-debug/cs598-api:latest
+          image: ghcr.io/sunny-debug/cs598-api:${GIT_SHA}
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
