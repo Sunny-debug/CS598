@@ -19,16 +19,19 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8000"
+        rollout-trigger: "force-redeploy-$(date +%s)"
     spec:
       containers:
         - name: api
-          image: deepfake-detector:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/sunny-debug/cs598-api:${GIT_SHA}
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           env:
             - name: WEB_CONCURRENCY
               value: "1"
+            - name: MODEL_PATH
+              value: /app/checkpoints/unet_small_traced.pt
           volumeMounts:
             - name: model
               mountPath: /app/checkpoints
