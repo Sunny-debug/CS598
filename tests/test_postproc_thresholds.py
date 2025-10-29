@@ -1,3 +1,5 @@
+import pytest
+pytestmark = [pytest.mark.local, pytest.mark.slow]
 import numpy as np
 from training.postproc import binarize, scores_from_mask, flag_decision
 

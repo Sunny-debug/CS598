@@ -69,7 +69,6 @@ data/.cache/
 *.pt
 *.onnx
 # models/
-checkpoints/
 outputs/
 runs/
 wandb/
@@ -122,3 +121,7 @@ checkpoints/
 *.gif
 # secrets
 .env
+
+!checkpoints/
+!checkpoints/*.pt
+!checkpoints/*.pth

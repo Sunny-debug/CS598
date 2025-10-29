@@ -21,8 +21,8 @@ spec:
         fsGroup: 10001
       containers:
         - name: ui
-          image: ghcr.io/sunny-debug/cs598:latest
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/sunny-debug/cs598-ui:latest
+          imagePullPolicy: Always
           workingDir: /app
           command: ["python", "-m", "streamlit"]
           args:
@@ -35,7 +35,7 @@ spec:
             - "--server.headless"
             - "true"
           env:
-            # ✅ Streamlit code reads API_URL. Use in-cluster DNS + port 8000.
+            #  Streamlit code reads API_URL. Use in-cluster DNS + port 8000.
             - name: API_URL
               value: "http://deepfake-api.deepfake.svc.cluster.local:8000"
             # Avoid permission issues (Streamlit writes here)
