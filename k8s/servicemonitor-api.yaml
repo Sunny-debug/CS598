@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: deepfake-api-sm
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: deepfake-api
+  namespaceSelector:
+    matchNames:
+      - deepfake
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
