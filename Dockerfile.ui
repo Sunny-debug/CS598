@@ -1,5 +1,11 @@
-# Dockerfile.ui — Streamlit frontend build (fixed)
+# ===============================
+# Deepfake UI (Streamlit, non-root)
+# ===============================
 FROM python:3.11-slim
+
+# Create non-root user/group
+RUN addgroup --system --gid 10001 appgroup \
+ && adduser  --system --uid 10001 --ingroup appgroup appuser
 
 # System deps for Pillow, Streamlit, etc.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -7,22 +13,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg62-turbo-dev \
     zlib1g-dev \
     libpng-dev \
-  && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy requirements first for cache efficiency
 COPY requirements-ui.txt /app/requirements-ui.txt
 
-# Upgrade pip and install dependencies directly (simpler, retry-safe)
-RUN python -m pip install -U pip setuptools wheel && \
-    pip install --no-cache-dir -r /app/requirements-ui.txt
+# Upgrade pip and install dependencies
+RUN python -m pip install -U pip setuptools wheel \
+ && pip install --no-cache-dir -r /app/requirements-ui.txt
 
 # Copy app code
 COPY streamlit_app /app/streamlit_app
 
-# Expose Streamlit port
-EXPOSE 8501
+# Make /app and /tmp writable by the non-root user
+RUN mkdir -p /tmp \
+ && chown -R appuser:appgroup /app /tmp
 
-# Run Streamlit
-CMD ["streamlit", "run", "streamlit_app/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]
+# Drop privileges for runtime
+USER appuser:appgroup
+
+ENV STREAMLIT_RUNTIME_SCRATCH_DIR=/tmp
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8501
+CMD ["python","-m","streamlit","run","streamlit_app/app.py","--server.port","8501","--server.address","0.0.0.0","--server.headless","true"]

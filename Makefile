@@ -1,8 +1,10 @@
 # Use Bash for eval; required for minikube docker-env
 SHELL := /bin/bash
+.ONESHELL:
 
 .PHONY: install run test docker-build docker-run docker-stop docker-shell docker-logs docker-test \
-        k8s-build k8s-load k8s-restart k8s-url k8s-port-forward k8s-logs streamlit venv clean
+        k8s-build k8s-load k8s-restart k8s-url k8s-port-forward k8s-logs streamlit venv clean deploy
+.PHONY: hardening-apply
 
 # -------------------- Virtualenv / tool paths --------------------
 VENV ?= venv
@@ -95,7 +97,21 @@ k8s-port-forward:
 # Tail app logs from the Deployment
 k8s-logs:
 	kubectl logs deploy/deepfake-detector -f
-
+	
+hardening-apply:
+	@set -euo pipefail
+	kubectl apply -f k8s/deployment-api.yaml
+	kubectl apply -f k8s/deployment-streamlit-realeyes.yaml
+	# Optional: only if you created it
+	-kubectl apply -f k8s/secret-api.yaml
+	# Optional: CPU autoscaling for API
+	-kubectl apply -f k8s/hpa-api.yaml
+	# Optional: restrict traffic to API
+	-kubectl apply -f k8s/netpol-api.yaml
+	# Optional: Prometheus scraping (if you add one)
+	-kubectl apply -f k8s/servicemonitor-api.yaml
+	kubectl -n deepfake rollout status deploy/deepfake-api
+	kubectl -n deepfake rollout status deploy/deepfake-ui-v2
 # -------------------- Streamlit demo client --------------------
 streamlit:
 	$(PY) -m pip install -U streamlit requests
@@ -109,3 +125,22 @@ train:
 		--epochs 2 \
 		--bs 2 \
 		--size 256
+
+# -------------------- Deploy --------------------
+deploy:
+	@set -euo pipefail
+	SHA7="$$(git rev-parse --short=7 HEAD)"
+	echo "Rolling out tag $$SHA7..."
+	kubectl -n deepfake set image deploy deepfake-api \
+	  api=ghcr.io/sunny-debug/cs598-api:$$SHA7
+	kubectl -n deepfake set image deploy deepfake-ui-v2 \
+	  ui=ghcr.io/sunny-debug/cs598-ui:$$SHA7
+	kubectl -n deepfake rollout status deploy/deepfake-api
+	kubectl -n deepfake rollout status deploy/deepfake-ui-v2
+
+rollback:
+	@set -euo pipefail
+	kubectl -n deepfake rollout undo deploy/deepfake-api
+	kubectl -n deepfake rollout undo deploy/deepfake-ui-v2
+	kubectl -n deepfake rollout status deploy/deepfake-api
+	kubectl -n deepfake rollout status deploy/deepfake-ui-v2	
