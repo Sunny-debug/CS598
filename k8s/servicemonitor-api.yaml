@@ -8,8 +8,7 @@ spec:
     matchLabels:
       app: deepfake-api
   namespaceSelector:
-    matchNames:
-      - deepfake
+    matchNames: [deepfake]
   endpoints:
     - port: http
       path: /metrics
