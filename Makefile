@@ -5,6 +5,7 @@ SHELL := /bin/bash
 .PHONY: install run test docker-build docker-run docker-stop docker-shell docker-logs docker-test \
         k8s-build k8s-load k8s-restart k8s-url k8s-port-forward k8s-logs streamlit venv clean deploy
 .PHONY: hardening-apply
+SHA7 ?= $(shell git rev-parse --short=7 HEAD)
 
 # -------------------- Virtualenv / tool paths --------------------
 VENV ?= venv
@@ -97,7 +98,7 @@ k8s-port-forward:
 # Tail app logs from the Deployment
 k8s-logs:
 	kubectl logs deploy/deepfake-detector -f
-	
+
 hardening-apply:
 	@set -euo pipefail
 	kubectl apply -f k8s/deployment-api.yaml
@@ -129,12 +130,11 @@ train:
 # -------------------- Deploy --------------------
 deploy:
 	@set -euo pipefail
-	SHA7="$$(git rev-parse --short=7 HEAD)"
-	echo "Rolling out tag $$SHA7..."
+	@echo "Rolling out tag $(SHA7)..."
 	kubectl -n deepfake set image deploy deepfake-api \
-	  api=ghcr.io/sunny-debug/cs598-api:$$SHA7
+	  api=ghcr.io/sunny-debug/cs598-api:$(SHA7)
 	kubectl -n deepfake set image deploy deepfake-ui-v2 \
-	  ui=ghcr.io/sunny-debug/cs598-ui:$$SHA7
+	  ui=ghcr.io/sunny-debug/cs598-ui:$(SHA7)
 	kubectl -n deepfake rollout status deploy/deepfake-api
 	kubectl -n deepfake rollout status deploy/deepfake-ui-v2
 
