@@ -22,7 +22,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # --- Config ---
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", settings.max_upload_mb)) * 1024 * 1024
-MODEL_PATH = os.environ.get("MODEL_PATH", "checkpoints/unet_small_traced.pt")
+MODEL_PATH = os.environ.get("MODEL_PATH", "checkpoints/unet_small_best.ts.pt")
 
 logger = logging.getLogger("uvicorn.error")
 

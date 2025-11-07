@@ -1,16 +1,16 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: deepfake-api
+  name: deepfake-api-svc   # <-- change this back
   namespace: deepfake
   labels:
     app: deepfake-api
 spec:
-  type: NodePort   # easy access in Minikube
+  type: NodePort
   selector:
     app: deepfake-api
   ports:
     - name: http
-      port: 8000
+      port: 80             # <-- better keep this as 80 for standard HTTP (Prometheus expects this)
       targetPort: 8000
-      nodePort: 30081   # reachable at http://$(minikube ip):30080
+      nodePort: 30081

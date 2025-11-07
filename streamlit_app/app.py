@@ -7,8 +7,8 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
-st.set_page_config(page_title="Deepfake Detector", layout="centered")
-st.title("Deepfake Detector — Streamlit Demo")
+st.set_page_config(page_title="Real Eyes", layout="centered")
+st.title("RealEyes — Streamlit Demo")
 
 st.write(
     "Upload an image and get a segmentation mask showing edited regions. "

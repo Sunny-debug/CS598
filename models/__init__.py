@@ -1,12 +1,14 @@
 """
 Models package initializer.
 
-This makes `models` a proper Python package so imports like
-`from models.unet import UNNetSmall` or `UNetSmall` work.
+This makes `models` importable directly via `from models import UNNetSmall`.
 """
 
-# ---- CHANGE HERE ----
-# Import both spellings from unet.py
-from .unet import UNNetSmall, UNetSmall
+# Try to import safely depending on your file content
+try:
+    from .unet import UNNetSmall  # your existing class
+except ImportError:
+    # fallback if the class is named UNet instead
+    from .unet import UNet as UNNetSmall
 
-__all__ = ["UNNetSmall", "UNetSmall"]
+__all__ = ["UNNetSmall"]

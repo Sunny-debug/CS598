@@ -1,15 +1,20 @@
-import numpy as np
-from sklearn.metrics import roc_auc_score
+import torch
 
-def iou(pred, gt, eps=1e-6):
-    inter = (pred & gt).sum()
-    union = (pred | gt).sum() + eps
-    return float(inter) / float(union)
+@torch.no_grad()
+def batch_dice_iou(logits: torch.Tensor, targets: torch.Tensor, threshold: float = 0.5):
+    """
+    logits: (N,1,H,W)
+    targets: (N,1,H,W) in {0,1}
+    returns: (dice_mean, iou_mean) as Python floats
+    """
+    probs = torch.sigmoid(logits)
+    preds = (probs >= threshold).float()
 
-def dice(pred, gt, eps=1e-6):
-    inter = (pred & gt).sum()
-    return float((2*inter + eps) / (pred.sum() + gt.sum() + eps))
+    inter = (preds * targets).sum(dim=(1,2,3))
+    union = (preds + targets - preds*targets).sum(dim=(1,2,3))
+    denom = (preds + targets).sum(dim=(1,2,3))
 
-def roc_auc(image_flags, labels):
-    # image_flags: list of scores (e.g., max_prob); labels: 0/1
-    return roc_auc_score(labels, image_flags)
+    dice = (2*inter + 1e-6) / (denom + 1e-6)
+    iou  = (inter + 1e-6) / (union + 1e-6)
+
+    return dice.mean().item(), iou.mean().item()
