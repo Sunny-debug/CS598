@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ui-and-prom-to-api
+  namespace: deepfake
+spec:
+  podSelector:
+    matchLabels:
+      app: deepfake-api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        # UI pods in deepfake namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: deepfake
+          podSelector:
+            matchLabels:
+              app: deepfake-ui-v2
+        # Prometheus in monitoring namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - namespaceSelector: {}   # allow cluster DNS, etc. (tighten later)
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+    - {}  # allow other egress for now; we’ll lock down later

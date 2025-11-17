@@ -3,7 +3,9 @@ import os
 import base64
 import io
 import logging
+import time  #  NEW: for latency timing
 from typing import Dict
+
 from app.config import settings
 
 import numpy as np
@@ -20,7 +22,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # --- Config ---
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", settings.max_upload_mb)) * 1024 * 1024
-MODEL_PATH = os.environ.get("MODEL_PATH", "checkpoints/unet_small_traced.pt")
+MODEL_PATH = os.environ.get("MODEL_PATH", "checkpoints/unet_small_best.ts.pt")
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -29,14 +31,25 @@ app = FastAPI(title="Deepfake Detection Service")
 # If you host Streamlit on another origin, allow it here:
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in prod
+    allow_origins=["*"],  # TODO: tighten in prod to your UI origin
     allow_credentials=False,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Prometheus metrics
+# --- Prometheus metrics: expose /metrics and add custom metrics ---
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
+from prometheus_client import Summary, Gauge
+
+INFERENCE_LATENCY = Summary(
+    "inference_latency_seconds",
+    "Time spent on model inference"
+)
+MASK_COVERAGE = Gauge(
+    "mask_coverage_ratio",
+    "Mean mask coverage ratio per image"
+)
 
 # Load TorchScript model at startup
 try:
@@ -66,7 +79,11 @@ async def predict(file: UploadFile = File(...)) -> Response:
         {
           "mask_base64": "<...>",           # grayscale 0-255
           "mask_bin_base64": "<...>",       # optional: binary preview
-          "shape": [256, 256]
+          "shape": [256, 256],
+          "metrics": {
+             "inference_latency_s": <float>,
+             "mask_coverage_ratio": <float>
+          }
         }
     """
     if file.content_type not in {"image/jpeg", "image/png"}:
@@ -86,8 +103,12 @@ async def predict(file: UploadFile = File(...)) -> Response:
         logger.warning(f"Bad image upload: {e}")
         raise HTTPException(status_code=400, detail="Invalid image file")
 
+    # --- Inference with metrics ---
     try:
+        t0 = time.perf_counter()
         probs = model.predict(img)  # (256, 256), float32 in [0,1]
+        latency = time.perf_counter() - t0
+        INFERENCE_LATENCY.observe(latency)  # record latency
     except Exception as e:
         logger.exception("Inference error")
         raise HTTPException(status_code=500, detail="Inference failed")
@@ -96,6 +117,10 @@ async def predict(file: UploadFile = File(...)) -> Response:
     mask_img = (np.clip(probs, 0.0, 1.0) * 255).astype(np.uint8)
     # quick binary preview (client can ignore if not needed)
     mask_bin = (mask_img > 128).astype(np.uint8) * 255
+
+    # coverage metric from the *probabilities* (not the binarized mask)
+    coverage = float(np.clip(probs, 0.0, 1.0).mean())
+    MASK_COVERAGE.set(coverage)  #  record coverage ratio
 
     # encode PNGs as base64
     buf = io.BytesIO()
@@ -106,6 +131,12 @@ async def predict(file: UploadFile = File(...)) -> Response:
     Image.fromarray(mask_bin).save(buf2, format="PNG")
     mask_bin_b64 = base64.b64encode(buf2.getvalue()).decode("utf-8")
 
-    return JSONResponse(
-        {"mask_base64": mask_b64, "mask_bin_base64": mask_bin_b64, "shape": list(mask_img.shape)}
-    )
+    return JSONResponse({
+        "mask_base64": mask_b64,
+        "mask_bin_base64": mask_bin_b64,
+        "shape": list(mask_img.shape),
+        "metrics": {
+            "inference_latency_s": latency,
+            "mask_coverage_ratio": coverage
+        }
+    })
