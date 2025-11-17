@@ -23,6 +23,8 @@ spec:
         app: deepfake-ui
         env: dev
     spec:
+      imagePullSecrets: 
+        - name: ghcr-secret
       containers:
         - name: deepfake-ui
           image: ghcr.io/sunny-debug/cs598-ui:PLACEHOLDER
