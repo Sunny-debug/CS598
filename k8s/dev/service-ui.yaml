@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: deepfake-ui
+  namespace: deepfake-dev
+  labels:
+    app: deepfake-ui
+    env: dev
+spec:
+  selector:
+    app: deepfake-ui
+    env: dev
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8501
+  type: ClusterIP
