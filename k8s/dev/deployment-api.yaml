@@ -23,6 +23,8 @@ spec:
         app: deepfake-api
         env: dev
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: deepfake-api
           # CD will swap this to a real tag via `kubectl set image`
