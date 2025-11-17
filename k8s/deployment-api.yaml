@@ -19,12 +19,12 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/path: /metrics
         prometheus.io/port: "8000"
-        rollout-trigger: "force-redeploy-$(date +%s)"
+        rollout-trigger: v2-immutable-images
     spec:
       containers:
         - name: api
-          image: ghcr.io/sunny-debug/cs598-api:${GIT_SHA}
-          imagePullPolicy: Always
+          image: ghcr.io/sunny-debug/cs598-api:unet-synth-v7
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
@@ -32,30 +32,47 @@ spec:
               value: "1"
             - name: MODEL_PATH
               value: /app/checkpoints/unet_small_traced.pt
+          envFrom:
+            - secretRef:
+                name: deepfake-api-secrets
           volumeMounts:
             - name: model
               mountPath: /app/checkpoints
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 8000
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
+              path: /healthz
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           resources:
             requests:
-              cpu: 100m
+              cpu: 200m
               memory: 256Mi
             limits:
               cpu: "1"
               memory: 1Gi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
       volumes:
         - name: model
           persistentVolumeClaim:
             claimName: deepfake-model-pvc
+        - name: tmp
+          emptyDir: {}
