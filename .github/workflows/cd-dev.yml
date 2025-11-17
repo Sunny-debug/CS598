@@ -5,10 +5,10 @@ on:
     branches:
       - main
 
-      env:
-        REGISTRY: ghcr.io
-        API_IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/cs598-api
-        UI_IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/cs598-ui
+env:
+  REGISTRY: ghcr.io
+  API_IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/cs598-api
+  UI_IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/cs598-ui
 
 jobs:
   build-and-push:
