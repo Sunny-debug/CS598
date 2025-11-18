@@ -125,3 +125,7 @@ checkpoints/
 !checkpoints/
 !checkpoints/*.pt
 !checkpoints/*.pth
+.env
+venv-train/
+venv-train/
+checkpoints/
