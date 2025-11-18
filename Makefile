@@ -29,6 +29,15 @@ TAG ?= 0.1.0
 IMAGE ?= $(APP):$(TAG)
 PORT ?= 8000
 
+# Registry repos for CI/CD (GHCR)
+REGISTRY ?= ghcr.io
+OWNER    ?= sunny-debug
+API_IMAGE_REPO ?= $(REGISTRY)/$(OWNER)/cs598-api
+UI_IMAGE_REPO  ?= $(REGISTRY)/$(OWNER)/cs598-ui
+
+# Tag for pulling from GHCR in dev (defaults to latest, but can be overridden)
+GH_TAG ?= latest
+
 # Docker CLI path (your original)
 DOCKER ?= docker
 ifeq ($(OS),Windows_NT)
@@ -113,6 +122,7 @@ hardening-apply:
 	-kubectl apply -f k8s/servicemonitor-api.yaml
 	kubectl -n deepfake rollout status deploy/deepfake-api
 	kubectl -n deepfake rollout status deploy/deepfake-ui-v2
+
 # -------------------- Streamlit demo client --------------------
 streamlit:
 	$(PY) -m pip install -U streamlit requests
@@ -127,14 +137,14 @@ train:
 		--bs 2 \
 		--size 256
 
-# -------------------- Deploy --------------------
+# -------------------- PROD-ish Deploy (deepfake namespace) --------------------
 deploy:
 	@set -euo pipefail
 	@echo "Rolling out tag $(SHA7)..."
 	kubectl -n deepfake set image deploy deepfake-api \
-	  api=ghcr.io/sunny-debug/cs598-api:$(SHA7)
+	  api=$(API_IMAGE_REPO):$(SHA7)
 	kubectl -n deepfake set image deploy deepfake-ui-v2 \
-	  ui=ghcr.io/sunny-debug/cs598-ui:$(SHA7)
+	  ui=$(UI_IMAGE_REPO):$(SHA7)
 	kubectl -n deepfake rollout status deploy/deepfake-api
 	kubectl -n deepfake rollout status deploy/deepfake-ui-v2
 
@@ -143,4 +153,21 @@ rollback:
 	kubectl -n deepfake rollout undo deploy/deepfake-api
 	kubectl -n deepfake rollout undo deploy/deepfake-ui-v2
 	kubectl -n deepfake rollout status deploy/deepfake-api
-	kubectl -n deepfake rollout status deploy/deepfake-ui-v2	
+	kubectl -n deepfake rollout status deploy/deepfake-ui-v2
+
+# -------------------- DEV Deploy (deepfake-dev namespace, from GHCR) --------------------
+deploy-dev:
+	@set -euo pipefail
+	@echo "Deploying to deepfake-dev with tag $(GH_TAG)..."
+	kubectl apply -f k8s/dev/namespace.yaml
+	kubectl apply -f k8s/dev/service-api.yaml
+	kubectl apply -f k8s/dev/service-ui.yaml
+	kubectl apply -f k8s/dev/deployment-api.yaml
+	kubectl apply -f k8s/dev/deployment-ui.yaml
+	kubectl -n deepfake-dev set image deployment/deepfake-api \
+	  deepfake-api=$(API_IMAGE_REPO):$(GH_TAG)
+	kubectl -n deepfake-dev set image deployment/deepfake-ui \
+	  deepfake-ui=$(UI_IMAGE_REPO):$(GH_TAG)
+	kubectl -n deepfake-dev rollout status deployment/deepfake-api
+	kubectl -n deepfake-dev rollout status deployment/deepfake-ui
+	@echo " Dev deployment complete."
