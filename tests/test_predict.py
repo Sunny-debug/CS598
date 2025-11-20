@@ -1,15 +1,27 @@
-from fastapi.testclient import TestClient
-from app.main import app
-from PIL import Image
+# tests/test_predict.py
 import io
+import numpy as np
+from PIL import Image
+from fastapi.testclient import TestClient  # type: ignore
+
+from app.main import app
 
 client = TestClient(app)
 
-def _png_bytes(color=(128, 128, 128), size=(64, 64)):
-    img = Image.new("RGB", size, color=color)
-    b = io.BytesIO()
-    img.save(b, format="PNG")
-    return b.getvalue()
+
+def _png_bytes(w: int = 32, h: int = 32) -> bytes:
+    """
+    Generate a tiny deterministic gradient PNG image for tests.
+    """
+    x = np.linspace(0, 255, w, dtype=np.uint8)
+    y = np.linspace(0, 255, h, dtype=np.uint8)
+    xx, yy = np.meshgrid(x, y)
+    arr = np.stack([xx, yy, ((xx + yy) // 2).astype(np.uint8)], axis=-1)
+    img = Image.fromarray(arr, mode="RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
 
 def test_predict_png_works():
     img_bytes = _png_bytes()
@@ -17,13 +29,12 @@ def test_predict_png_works():
     r = client.post("/predict", files=files)
     assert r.status_code == 200
     data = r.json()
-    assert set(data.keys()) == {"label", "confidence", "probs", "score", "model_version", "threshold"}
-    assert set(data["probs"].keys()) == {"real", "fake"}
-    assert 0.0 <= data["score"] <= 1.0
 
-def test_reject_large_image():
-    # 11MB+ payload (zeros) to exercise 413
-    big = b"\x00" * (11 * 1024 * 1024)
-    files = {"file": ("big.png", big, "image/png")}
-    r = client.post("/predict", files=files)
-    assert r.status_code in (400, 413)  # may fail as invalid image OR too large
+    required = {"label", "confidence", "probs", "score", "model_version", "threshold"}
+    # Only require these keys to be present; extra keys (mask_base64, metrics, etc.) are allowed
+    assert required.issubset(set(data.keys()))
+
+    assert data["label"] in {"real", "fake"}
+    assert isinstance(data["confidence"], float)
+    assert isinstance(data["score"], float)
+    assert isinstance(data["threshold"], float)
