@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: deepfake-api-smoke-test
+  namespace: deepfake-dev
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: curl
+          image: curlimages/curl:8.10.1
+          args:
+            - /bin/sh
+            - -c
+            - |
+              echo "Running smoke test against deepfake-api..."
+              curl -sS http://deepfake-api.deepfake-dev.svc.cluster.local/health || exit 1
+              echo "Smoke test passed!"

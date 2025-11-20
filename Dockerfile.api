@@ -1,7 +1,11 @@
 # ===============================
-# Deepfake Detector API
+# Deepfake Detector API (non-root)
 # ===============================
 FROM python:3.11-slim AS base
+
+# --- create non-root user/group early so file ownership is correct ---
+RUN addgroup --system --gid 10001 appgroup \
+ && adduser  --system --uid 10001 --ingroup appgroup appuser
 
 WORKDIR /app
 
@@ -23,14 +27,22 @@ RUN for i in 1 2 3; do \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy code & weights
+# Copy code & weights (as root), then fix ownership for non-root runtime
 COPY app /app/app
 COPY models /app/models
 RUN mkdir -p /app/checkpoints
 COPY checkpoints/ /app/checkpoints/
 
+# Ensure the app directories (and /tmp) are writable by the non-root user
+RUN mkdir -p /tmp \
+ && chown -R appuser:appgroup /app /tmp
+
+# Drop privileges for runtime
+USER appuser:appgroup
+
 ENV MODEL_PATH=/app/checkpoints/unet_small_traced.pt
 ENV MODEL_VERSION=v0.1.0
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

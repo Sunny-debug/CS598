@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: deepfake-dev
+  labels:
+    app: deepfake
+    env: dev
