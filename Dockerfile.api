@@ -3,6 +3,10 @@
 # ===============================
 FROM python:3.11-slim AS base
 
+# Global pip/network hardening for large wheels (PyTorch)
+ENV PIP_DEFAULT_TIMEOUT=600 \
+    PIP_RETRIES=10
+
 # --- create non-root user/group early so file ownership is correct ---
 RUN addgroup --system --gid 10001 appgroup \
  && adduser  --system --uid 10001 --ingroup appgroup appuser
@@ -11,16 +15,22 @@ WORKDIR /app
 
 # Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl && rm -rf /var/lib/apt/lists/*
+    git curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip
 RUN python -m pip install --upgrade pip
 
 # Install Torch CPU wheels (no CUDA; stable on Minikube)
+# - Uses PyTorch CPU index
+# - High timeout + retries to survive slow/flaky downloads
 RUN for i in 1 2 3; do \
-      pip install --no-cache-dir --timeout 120 --retries 5 \
+      pip install --no-cache-dir \
+        --default-timeout=600 \
+        --retries=10 \
         --index-url https://download.pytorch.org/whl/cpu \
-        torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 && break || sleep 5; \
+        torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 && break || \
+      echo "PyTorch install failed on attempt $i, retrying..." && sleep 10; \
     done
 
 # Install FastAPI + deps (ensure torch is NOT pinned again in requirements.txt)
@@ -40,9 +50,10 @@ RUN mkdir -p /tmp \
 # Drop privileges for runtime
 USER appuser:appgroup
 
-ENV MODEL_PATH=/app/checkpoints/unet_small_traced.pt
-ENV MODEL_VERSION=v0.1.0
-ENV PYTHONUNBUFFERED=1
+ENV MODEL_PATH=/app/checkpoints/unet_small_traced.pt \
+    MODEL_VERSION=v0.1.0 \
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
